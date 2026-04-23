@@ -29,6 +29,7 @@ jobs:
       - name: Run script
         env:
           BASE_URL: ${{ secrets.BASE_URL }}
+          EXPLORE_URL: ${{ secrets.EXPLORE_URL }}
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: python medusometer.py
