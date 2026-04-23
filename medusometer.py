@@ -6,6 +6,9 @@ import requests
 
 from playwright.sync_api import sync_playwright
 
+from datetime import datetime
+
+
 #TG msg
 def tg_alert(message):
     token = os.environ["TG_TOKEN"]
@@ -19,7 +22,7 @@ def tg_alert(message):
     })
 
 #Scraper
-def scrape_meduseo():
+def scrape_meduse():
     with sync_playwright() as p:
         base_url = os.environ["BASE_URL"]
         browser = p.chromium.launch(headless=True)
@@ -66,7 +69,55 @@ def scrape_meduseo():
 
         return jellyfish_24h, water_temp, current_speed, report_date, report_level, report_beach
 
+
+def get_meduse_forecast_score():
+    url = os.environ["EXPLORE_URL"]
+
+    today = datetime.now()
+    day = today.day
+    month = today.month - 1  # important : janvier = 0
+
+    selector = f'.explore-day[data-day="{day}"][data-month="{month}"]'
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+
+        page.goto(url, timeout=60000)
+
+        try:
+            element = page.locator(selector)
+            score = element.get_attribute("data-score")
+
+            if score is None:
+                score = "0"
+
+        except:
+            score = "0"
+
+        browser.close()
+
+    return score
+
+def interpret_meduse_score(score):
+    try:
+        s = float(score)
+    except:
+        return "inconnu"
+
+    if s < 5:
+        return "rare"
+    elif s < 20:
+        return "peu fréquent"
+    elif s < 40:
+        return "fréquent"
+    else:
+        return "très fréquent"
+
 #Msg format
+def format_forecast_message(score):
+    return f"📅 Risque méduses : {score}% ({interpret_meduse_score(score)})"
+
 def format_report(date, level, beach):
     if date == "N/A":
         return "indisponible"
@@ -86,16 +137,24 @@ def format_message(jellyfish, water_temp, current_speed, report):
 #Main
 if __name__ == "__main__":
     try:
-        jellyfish, water_temp, current_speed, report_date, report_level, report_beach = scrape_meduseo()
+        # --- scraping live (ton premier bloc existant) ---
+        jellyfish, water_temp, current_speed, report_date, report_level, report_beach = scrape_meduse()
 
         report = format_report(report_date, report_level, report_beach)
 
-        message = format_message(
+        live_message = format_message(
             jellyfish,
             water_temp,
             current_speed,
             report
         )
+
+        # --- forecast ---
+        forecast_score = get_meduse_forecast_score()
+        forecast_message = format_forecast_message(forecast_score)
+
+        # --- message final ---
+        message = live_message + "\n\n" + forecast_message
 
         print(message)
         tg_alert(message)
